@@ -1,8 +1,8 @@
 import os
 import openai
 
-# Ensure your OpenAI API key is set in your environment
-openai.api_key = os.getenv("OPENAI_API_KEY")  # ✅ Use standard env var name
+# Set your OpenAI API key via environment variable
+openai.api_key = os.getenv("Your_API_Key")
 
 def summarize_abstract(abstract):
     if not abstract or abstract.strip() == "":
