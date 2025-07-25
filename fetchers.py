@@ -89,7 +89,7 @@ def fetch_all(query, save_csv=False, max_results=500):
     
     data_sources = []
 
-    df_openalex = fetch_openalex(query, rows=min(100, max_results))
+    df_openalex = fetch_openalex(query, max_results=min(100, max_results))
     if df_openalex:
         df_openalex = pd.DataFrame(df_openalex)
         data_sources.append(df_openalex)
