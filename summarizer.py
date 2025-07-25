@@ -1,30 +1,20 @@
-import streamlit as st
-import openai
+# summarizer.py
+from transformers import pipeline
+import torch
 
-# Get API key from Streamlit Secrets
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# Use GPU if available for faster performance
+device = 0 if torch.cuda.is_available() else -1
+
+# Load summarization pipeline with BART model
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn", device=device)
 
 def summarize_abstract(abstract):
     if not abstract or abstract.strip() == "":
         return "No abstract provided."
 
     try:
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant that summarizes academic abstracts in one sentence."
-                },
-                {
-                    "role": "user",
-                    "content": f"Summarize this abstract in one sentence:\n\n{abstract}"
-                }
-            ],
-            temperature=0.3,
-            max_tokens=100
-        )
-        return response.choices[0].message.content.strip()
-
+        # HuggingFace models have a max token limit (e.g. ~1024 for BART)
+        summary = summarizer(abstract, max_length=100, min_length=20, do_sample=False)
+        return summary[0]['summary_text']
     except Exception as e:
         return f"Error: {str(e)}"
