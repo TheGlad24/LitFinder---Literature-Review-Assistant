@@ -79,14 +79,38 @@ def fetch_crossref(query, rows=100):
         return []
 
 
-def fetch_all(query, save_csv=True, max_results=500):
-    df_openalex = fetch_openalex(query, max_results=max_results)
-    df_crossref = fetch_crossref(query, rows=min(100, max_results))
-    df = pd.concat([df_openalex, df_crossref], ignore_index=True)
+def fetch_crossref(query, rows=100):
+    url = "https://api.crossref.org/works"
+    params = {"query": query, "rows": rows}
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()  # raises HTTPError if status not 200
+        data = response.json()
 
-    if save_csv:
-        filename = f"literature_{query.replace(' ', '_')}.csv"
-        df.to_csv(filename, index=False)
-        print(f"✅ Saved to {filename}")
+        # Safely access nested keys
+        items = data.get("message", {}).get("items", [])
+        if not items:
+            print("No results returned from Crossref for query:", query)
 
-    return df
+        results = []
+        for item in items:
+            results.append({
+                "title": item.get("title", [""])[0],
+                "authors": ", ".join([
+                    f"{a.get('family', '')} {a.get('given', '')}" 
+                    for a in item.get("author", [])
+                ]) if "author" in item else "",
+                "year": item.get("issued", {}).get("date-parts", [[None]])[0][0],
+                "abstract": item.get("abstract", ""),
+                "journal": item.get("container-title", [""])[0]
+            })
+
+        return results
+
+    except requests.RequestException as e:
+        print(f"Request failed: {e}")
+        return []
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return []
