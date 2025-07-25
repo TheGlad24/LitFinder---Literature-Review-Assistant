@@ -1,6 +1,16 @@
 import requests
 import pandas as pd
 
+# 🧠 Helper: Reconstruct abstract from OpenAlex's inverted index
+def reconstruct_abstract(index):
+    if not isinstance(index, dict):
+        return ""
+    try:
+        words = sorted(index.items(), key=lambda x: min(x[1]))
+        return " ".join([word for word, _ in words])
+    except:
+        return ""
+
 def fetch_openalex(query, max_results=500):
     url = "https://api.openalex.org/works"
     per_page = 200
@@ -27,7 +37,7 @@ def fetch_openalex(query, max_results=500):
                         for auth in item.get("authorships", [])
                     ]),
                     "year": item.get("publication_year", ""),
-                    "abstract": "",  # abstract_inverted_index skipped
+                    "abstract": reconstruct_abstract(item.get("abstract_inverted_index", {})),
                     "journal": item.get("host_venue", {}).get("display_name", ""),
                     "doi": item.get("doi", "")
                 })
@@ -64,7 +74,7 @@ def fetch_crossref(query, rows=100):
             results.append({
                 "title": item.get("title", [""])[0],
                 "authors": ", ".join([
-                    f"{a.get('given', '')} {a.get('family', '')}"
+                    f"{a.get('family', '')} {a.get('given', '')}" 
                     for a in item.get("author", [])
                 ]) if "author" in item else "",
                 "year": item.get("issued", {}).get("date-parts", [[None]])[0][0],
@@ -86,16 +96,17 @@ def fetch_crossref(query, rows=100):
 
 def fetch_all(query, save_csv=False, max_results=500):
     print(f"Fetching for query: {query}")
+    
     data_sources = []
 
-    openalex_data = fetch_openalex(query, max_results=min(100, max_results))
-    if openalex_data:
-        df_openalex = pd.DataFrame(openalex_data)
+    df_openalex = fetch_openalex(query, max_results=min(100, max_results))
+    if df_openalex:
+        df_openalex = pd.DataFrame(df_openalex)
         data_sources.append(df_openalex)
 
-    crossref_data = fetch_crossref(query, rows=min(100, max_results))
-    if crossref_data:
-        df_crossref = pd.DataFrame(crossref_data)
+    df_crossref = fetch_crossref(query, rows=min(100, max_results))
+    if df_crossref:
+        df_crossref = pd.DataFrame(df_crossref)
         data_sources.append(df_crossref)
 
     if not data_sources:
