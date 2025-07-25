@@ -2,9 +2,12 @@ import pandas as pd
 from rapidfuzz import fuzz
 import re
 
+
 def clean_html_abstract(text):
-    if pd.isna(text): return ""
+    if pd.isna(text) or not isinstance(text, str):
+        return ""
     return re.sub("<[^<]+?>", "", text)
+
 
 def normalize_authors(name_string):
     authors = name_string.split(",")
