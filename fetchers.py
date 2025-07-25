@@ -1,5 +1,7 @@
 import requests
 import pandas as pd
+from openalex import fetch_openalex
+
 
 
 def fetch_openalex(query, per_page=100, max_results=500):
