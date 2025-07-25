@@ -1,20 +1,32 @@
 # summarizer.py
 from transformers import pipeline
 import torch
+import pandas as pd
 
-# Use GPU if available for faster performance
 device = 0 if torch.cuda.is_available() else -1
-
-# Load summarization pipeline with BART model
 summarizer = pipeline("summarization", model="facebook/bart-large-cnn", device=device)
 
-def summarize_abstract(abstract):
-    if not abstract or abstract.strip() == "":
-        return "No abstract provided."
+def summarize_abstracts(df, text_column="abstract", output_column="summary", batch_size=8):
+    summaries = []
+    texts = df[text_column].fillna("").tolist()
 
-    try:
-        # HuggingFace models have a max token limit (e.g. ~1024 for BART)
-        summary = summarizer(abstract, max_length=100, min_length=20, do_sample=False)
-        return summary[0]['summary_text']
-    except Exception as e:
-        return f"Error: {str(e)}"
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i + batch_size]
+        clean_batch = [text if text.strip() else "No abstract provided." for text in batch]
+
+        try:
+            outputs = summarizer(
+                clean_batch,
+                max_length=100,
+                min_length=20,
+                do_sample=False,
+                truncation=True
+            )
+            batch_summaries = [out['summary_text'] for out in outputs]
+        except Exception as e:
+            batch_summaries = [f"Error: {str(e)}"] * len(clean_batch)
+
+        summaries.extend(batch_summaries)
+
+    df[output_column] = summaries
+    return df
