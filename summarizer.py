@@ -1,8 +1,8 @@
-import os
+import streamlit as st
 import openai
 
-# Set your OpenAI API key via environment variable
-openai.api_key = os.getenv("Your_API_Key")
+# Get API key from Streamlit Secrets
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 def summarize_abstract(abstract):
     if not abstract or abstract.strip() == "":
