@@ -34,7 +34,9 @@ if st.button("Fetch & Process"):
         df = extract_keywords(df)
 
     with st.spinner("Summarizing abstracts..."):
-        df["summary"] = df["abstract"].apply(cached_summarize)
+        df["summary"] = ""
+        df.loc[:19, "summary"] = df.loc[:19, "abstract"].apply(cached_summarize)
+
 
     df_ready = clean_for_biblioshiny(df)
 
