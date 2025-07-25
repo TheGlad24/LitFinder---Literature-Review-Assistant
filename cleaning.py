@@ -8,7 +8,7 @@ def clean_html_abstract(text):
     """
     if pd.isna(text) or not isinstance(text, str):
         return ""
-    return re.sub("<[^<]+?>", "", text)
+    return re.sub(r"<[^<]+?>", "", text)
 
 def normalize_authors(name_string):
     """
@@ -16,7 +16,7 @@ def normalize_authors(name_string):
     """
     if pd.isna(name_string) or not isinstance(name_string, str):
         return ""
-    
+
     authors = name_string.split(",")
     return ", ".join([
         " ".join(name.strip().split()[::-1]) 
@@ -25,7 +25,7 @@ def normalize_authors(name_string):
 
 def remove_duplicates(df, title_col="title", doi_col="doi"):
     """
-    Remove duplicate entries by DOI or fuzzy title match.
+    Remove duplicate entries based on DOI or fuzzy-matched titles.
     """
     seen_dois = set()
     final_rows = []
@@ -43,11 +43,9 @@ def remove_duplicates(df, title_col="title", doi_col="doi"):
             duplicate = False
             for existing in final_rows:
                 existing_title = str(existing.get(title_col, "")).strip().lower()
-                if title and existing_title:
-                    similarity = fuzz.ratio(existing_title, title)
-                    if similarity > 95:
-                        duplicate = True
-                        break
+                if existing_title and title and fuzz.ratio(existing_title, title) > 95:
+                    duplicate = True
+                    break
             if not duplicate:
                 final_rows.append(row)
 
