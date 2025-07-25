@@ -1,5 +1,4 @@
 streamlit
-openai
 requests
 keybert
 pandas
@@ -7,3 +6,5 @@ scikit-learn
 sentence-transformers
 nltk
 rapidfuzz
+transformers
+torch
