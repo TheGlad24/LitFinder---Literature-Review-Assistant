@@ -4,7 +4,7 @@ import pandas as pd
 
 def fetch_openalex(query, max_results=500):
     url = "https://api.openalex.org/works"
-    per_page = 200  # OpenAlex allows max 200 per page
+    per_page = 200  # OpenAlex max per page
     params = {
         "search": query,
         "per-page": per_page,
@@ -21,6 +21,14 @@ def fetch_openalex(query, max_results=500):
             data = response.json()
 
             for item in data.get("results", []):
+                # Rebuild abstract from abstract_inverted_index
+                abstract_text = ""
+                if "abstract_inverted_index" in item:
+                    idx = item["abstract_inverted_index"]
+                    abstract_text = " ".join(
+                        word for word, positions in sorted(idx.items(), key=lambda x: x[1][0])
+                    )
+
                 results.append({
                     "title": item.get("title", ""),
                     "authors": ", ".join([
@@ -28,16 +36,17 @@ def fetch_openalex(query, max_results=500):
                         for auth in item.get("authorships", [])
                     ]),
                     "year": item.get("publication_year", ""),
-                    "abstract": item.get("abstract_inverted_index", ""),
+                    "abstract": abstract_text,
                     "journal": item.get("host_venue", {}).get("display_name", "")
                 })
+
                 total_fetched += 1
                 if total_fetched >= max_results:
                     break
 
             next_cursor = data.get("meta", {}).get("next_cursor")
             if not next_cursor:
-                break  # No more pages
+                break
             params["cursor"] = next_cursor
 
         except Exception as e:
@@ -52,10 +61,9 @@ def fetch_crossref(query, rows=100):
     params = {"query": query, "rows": rows}
     try:
         response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()  # raises HTTPError if status not 200
+        response.raise_for_status()
         data = response.json()
 
-        # Safely access nested keys
         items = data.get("message", {}).get("items", [])
         if not items:
             print("No results returned from Crossref for query:", query)
@@ -65,7 +73,7 @@ def fetch_crossref(query, rows=100):
             results.append({
                 "title": item.get("title", [""])[0],
                 "authors": ", ".join([
-                    f"{a.get('family', '')} {a.get('given', '')}" 
+                    f"{a.get('family', '')} {a.get('given', '')}"
                     for a in item.get("author", [])
                 ]) if "author" in item else "",
                 "year": item.get("issued", {}).get("date-parts", [[None]])[0][0],
@@ -86,14 +94,16 @@ def fetch_crossref(query, rows=100):
 
 def fetch_all(query, save_csv=False, max_results=500):
     print(f"Fetching for query: {query}")
-    
+
     data_sources = []
 
+    # Fetch from OpenAlex
     df_openalex = fetch_openalex(query, max_results=min(100, max_results))
     if df_openalex:
         df_openalex = pd.DataFrame(df_openalex)
         data_sources.append(df_openalex)
 
+    # Fetch from Crossref
     df_crossref = fetch_crossref(query, rows=min(100, max_results))
     if df_crossref:
         df_crossref = pd.DataFrame(df_crossref)
