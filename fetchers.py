@@ -2,48 +2,50 @@ import requests
 import pandas as pd
 
 
-
-
-def fetch_openalex(query, per_page=100, max_results=500):
-    results = []
-    base_url = "https://api.openalex.org/works"
+def fetch_openalex(query, max_results=500):
+    url = "https://api.openalex.org/works"
+    per_page = 200  # OpenAlex allows max 200 per page
     params = {
         "search": query,
         "per-page": per_page,
-        "mailto": "your_email@example.com"
+        "cursor": "*"
     }
 
-    next_cursor = "*"
-    while next_cursor and len(results) < max_results:
-        params["cursor"] = next_cursor
-        r = requests.get(base_url, params=params)
-        data = r.json()
-        results.extend(data.get("results", []))
-        next_cursor = data.get("meta", {}).get("next_cursor", None)
+    results = []
+    total_fetched = 0
 
-    records = []
-    for item in results:
-        abstract = item.get("abstract_inverted_index")
-        if abstract:
-            words = sorted([(pos, word) for word, pos_list in abstract.items() for pos in pos_list])
-            abstract = " ".join([w for _, w in words])
-        else:
-            abstract = ""
+    while total_fetched < max_results:
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
 
-        records.append({
-            "title": item.get("title"),
-            "abstract": abstract,
-            "authors": ", ".join([auth["author"]["display_name"] for auth in item.get("authorships", [])]),
-            "year": item.get("publication_year"),
-            "doi": item.get("doi"),
-            "source": "OpenAlex",
-            "venue": item.get("host_venue", {}).get("display_name", ""),
-            "topics": ", ".join([c["display_name"] for c in item.get("concepts", [])]),
-            "citations": item.get("cited_by_count")
-        })
-    return pd.DataFrame(records)
+            for item in data.get("results", []):
+                results.append({
+                    "title": item.get("title", ""),
+                    "authors": ", ".join([
+                        auth.get("author", {}).get("display_name", "")
+                        for auth in item.get("authorships", [])
+                    ]),
+                    "year": item.get("publication_year", ""),
+                    "abstract": item.get("abstract_inverted_index", ""),
+                    "journal": item.get("host_venue", {}).get("display_name", "")
+                })
+                total_fetched += 1
+                if total_fetched >= max_results:
+                    break
 
-import requests
+            next_cursor = data.get("meta", {}).get("next_cursor")
+            if not next_cursor:
+                break  # No more pages
+            params["cursor"] = next_cursor
+
+        except Exception as e:
+            print(f"Error fetching OpenAlex data: {e}")
+            break
+
+    return results
+
 
 def fetch_crossref(query, rows=100):
     url = "https://api.crossref.org/works"
