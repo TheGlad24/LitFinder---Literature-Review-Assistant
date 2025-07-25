@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-from openalex import fetch_openalex
+
 
 
 
