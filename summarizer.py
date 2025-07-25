@@ -1,6 +1,7 @@
 import os
 import openai
 
+# Ensure your API key is set as an environment variable
 openai.api_key = os.getenv("Your_API_Key")
 
 def summarize_abstract(abstract):
@@ -8,7 +9,7 @@ def summarize_abstract(abstract):
         return "No abstract provided."
 
     try:
-        response = openai.ChatCompletion.create(
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {
@@ -23,6 +24,7 @@ def summarize_abstract(abstract):
             temperature=0.3,
             max_tokens=100
         )
-        return response.choices[0].message["content"].strip()
+        return response.choices[0].message.content.strip()
+
     except Exception as e:
         return f"Error: {str(e)}"
