@@ -5,8 +5,8 @@ from summarizer import summarize_abstract
 from cleaning import clean_html_abstract, normalize_authors, remove_duplicates
 import pandas as pd
 
-st.set_page_config(page_title="LitFetcher", layout="wide")
-st.title("📚 LitFetcher: Literature Review Assistant")
+st.set_page_config(page_title="LitFinder", layout="wide")
+st.title("📚 LitFinder: Literature Review Assistant")
 
 query = st.text_input("Enter search query:", "quantum cryptography robotics")
 max_results = st.slider("Max results", 100, 1000, 500)
