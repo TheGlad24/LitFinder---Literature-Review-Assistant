@@ -3,13 +3,19 @@ from fetchers import fetch_all
 from nlp import extract_keywords
 from summarizer import summarize_abstract
 from cleaning import clean_html_abstract, normalize_authors, remove_duplicates
-from utils import clean_for_biblioshiny
 import pandas as pd
 
+st.set_page_config(page_title="LitFetcher", layout="wide")
 st.title("📚 LitFetcher: Literature Review Assistant")
 
 query = st.text_input("Enter search query:", "quantum cryptography robotics")
 max_results = st.slider("Max results", 100, 1000, 500)
+
+def clean_for_biblioshiny(df):
+    # Keep the columns needed for CSV export, including abstract
+    columns_to_keep = ["title", "authors", "year", "abstract", "summary", "keywords", "journal"]
+    existing_cols = [col for col in columns_to_keep if col in df.columns]
+    return df[existing_cols]
 
 if st.button("Fetch & Process"):
     with st.spinner("Fetching papers..."):
@@ -29,4 +35,10 @@ if st.button("Fetch & Process"):
     df_ready = clean_for_biblioshiny(df)
 
     st.success(f"✅ Done! {len(df)} papers processed.")
-    st.download_button("Download CSV for Biblioshiny", df_ready.to_csv(index=False), file_name="litfetcher_output.csv")
+    st.dataframe(df_ready.head())  # Show preview in app
+    st.download_button(
+        "Download CSV for Biblioshiny",
+        df_ready.to_csv(index=False),
+        file_name="litfetcher_output.csv",
+        mime="text/csv"
+    )
