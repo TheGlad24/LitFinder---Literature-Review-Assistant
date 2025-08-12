@@ -8,3 +8,10 @@ nltk
 rapidfuzz
 transformers
 torch
+streamlit
+requests
+pandas
+scikit-learn
+nltk
+rapidfuzz
+google-generativeai
