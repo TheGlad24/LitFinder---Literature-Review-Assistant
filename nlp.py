@@ -1,75 +1,128 @@
-# nlp.py — Gemini API keyword extractor using Streamlit secrets (no KeyBERT)
+# nlp.py — OpenAI GPT-4o mini keyword extraction (batched, robust, safe assignment)
 import os
 import json
-import streamlit as st
-import google.generativeai as genai
+from typing import Iterable, List, Dict, Tuple, Optional
+
 import pandas as pd
-from typing import Iterable, Optional
+import streamlit as st
+from openai import OpenAI
+
+MODEL_NAME = "gpt-4o-mini"
 
 @st.cache_resource(show_spinner=False)
-def _gemini(model_name: str = "gemini-1.5-flash"):
-    """
-    Loads a Gemini model once per session.
-    API key is read from Streamlit secrets: st.secrets["GOOGLE_API_KEY"].
-    Falls back to env var GOOGLE_API_KEY if secrets are not set.
-    """
+def _openai_client() -> OpenAI:
     api_key = ""
     try:
-        api_key = st.secrets["GOOGLE_API_KEY"]
+        api_key = st.secrets["OPENAI_API_KEY"]
     except Exception:
-        pass
+        api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
-        api_key = os.getenv("GOOGLE_API_KEY", "")
+        raise ValueError("OPENAI_API_KEY missing. In Streamlit Cloud, set it under Settings → Secrets.")
+    return OpenAI(api_key=api_key)
 
-    if not api_key:
-        raise ValueError(
-            "GOOGLE_API_KEY is missing. "
-            "On Streamlit Cloud, set it under Settings → Secrets with key 'GOOGLE_API_KEY'."
+def _keywords_batch(texts: List[Tuple[int, str]], top_n: int = 5) -> Dict[int, List[str]]:
+    """
+    Extract keywords for a batch of (id, text). Returns {id: [keywords]} using one GPT call.
+    Falls back per-item if JSON parsing fails.
+    """
+    client = _openai_client()
+    items = [{"id": int(i), "text": (t or "")[:1200]} for i, t in texts]
+
+    system = (
+        "You are a scholarly assistant. Extract concise, domain-relevant keyphrases (1–3 words) "
+        "that best describe each passage's topic and contribution. Avoid overly generic terms like 'paper', 'study', 'results'."
+    )
+    user = (
+        "For each item, return exactly {k} keyphrases.\n"
+        "STRICT JSON only: an array of objects with keys 'id' (int) and 'keywords' (array of strings).\n"
+        "No code fences, no extra text.\n\n"
+        "DATA:\n{data}"
+    ).format(k=top_n, data=json.dumps(items, ensure_ascii=False))
+
+    try:
+        resp = client.chat.completions.create(
+            model=MODEL_NAME,
+            temperature=0.2,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
         )
+        content = resp.choices[0].message.content.strip()
+        content = content.strip("` \n")
+        if content.lower().startswith("json"):
+            content = content[4:].lstrip(": \n`")
+        parsed = json.loads(content)
+        out: Dict[int, List[str]] = {}
+        if isinstance(parsed, list):
+            for obj in parsed:
+                try:
+                    kid = int(obj["id"])
+                    kws = obj.get("keywords", [])
+                    if isinstance(kws, list):
+                        out[kid] = [str(x).strip() for x in kws if str(x).strip()]
+                except Exception:
+                    continue
+        missing = {i for i, _ in texts} - set(out.keys())
+        if missing:
+            for mid in missing:
+                text = next(t for i, t in texts if i == mid)
+                out[mid] = _keywords_one(text, top_n=top_n)
+        return out
+    except Exception:
+        return {i: _keywords_one(t, top_n=top_n) for i, t in texts}
 
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel(model_name)
-
-def _gemini_keywords(text: str, top_n: int = 5):
-    """
-    Ask Gemini for top-N domain-relevant keyphrases. Returns List[str].
-    """
+def _keywords_one(text: str, top_n: int = 5) -> List[str]:
     if not isinstance(text, str) or not text.strip():
         return []
-    model = _gemini()
+    client = _openai_client()
     prompt = (
-        "Extract the most salient, domain-relevant keyphrases from the passage.\n"
-        f"Return a strict JSON array of {top_n} strings (no code fences, no explanations).\n\n"
-        f"PASSAGE:\n{text.strip()}"
+        f"Extract the {top_n} most salient, domain-relevant keyphrases (1–3 words) from the passage. "
+        "Avoid generic words ('paper', 'study', 'results'). "
+        "Return a strict JSON array of strings, no extra text.\n\n"
+        f"PASSAGE:\n{text.strip()[:1200]}"
     )
     try:
-        resp = model.generate_content(prompt)
-        raw = (getattr(resp, "text", "") or "").strip()
-        # Strip accidental backticks/labels
-        raw = raw.strip("` \n")
+        resp = client.chat.completions.create(
+            model=MODEL_NAME,
+            temperature=0.2,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = resp.choices[0].message.content.strip().strip("` \n")
         if raw.lower().startswith("json"):
-            raw = raw[4:].lstrip(" :\n`")
+            raw = raw[4:].lstrip(": \n`")
         data = json.loads(raw)
         if isinstance(data, list):
-            return [str(x).strip() for x in data if isinstance(x, (str, int, float))]
+            return [str(x).strip() for x in data if str(x).strip()]
     except Exception:
         pass
     return []
+
+def _chunks(seq: List[Tuple[int, str]], size: int):
+    for i in range(0, len(seq), size):
+        yield seq[i:i+size]
 
 def extract_keywords(
     df: pd.DataFrame,
     text_column: str = "abstract",
     top_n: int = 5,
-    idx: Optional[Iterable[int]] = None
+    idx: Optional[Iterable[int]] = None,
+    batch_size: int = 12,
 ) -> pd.DataFrame:
     """
-    In-place: writes df.loc[idx, 'keywords'] using Gemini.
+    Writes df.loc[idx, 'keywords'] using batched GPT-4o mini calls.
+    Uses aligned Series assignment to avoid shape mismatch errors.
     """
     if idx is None:
         idx = df.index
-    out = []
-    for i in idx:
-        text = str(df.at[i, text_column] or "")
-        out.append(_gemini_keywords(text, top_n=top_n))
-    df.loc[idx, "keywords"] = out
+    idx = pd.Index(idx)
+    texts = df.loc[idx, text_column].fillna("").astype(str).tolist()
+    id_text_pairs = list(zip(idx.tolist(), texts))
+
+    results: Dict[int, List[str]] = {}
+    for batch in _chunks(id_text_pairs, batch_size):
+        results.update(_keywords_batch(batch, top_n=top_n))
+
+    kw_lists = [results.get(i, []) for i in idx]
+    df.loc[idx, "keywords"] = pd.Series(kw_lists, index=idx, dtype="object")
     return df
