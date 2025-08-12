@@ -15,3 +15,13 @@ scikit-learn
 nltk
 rapidfuzz
 google-generativeai
+streamlit
+requests
+pandas
+scikit-learn
+nltk
+rapidfuzz
+openai
+# Optional: if you enabled arXiv in fetchers
+# feedparser
+
