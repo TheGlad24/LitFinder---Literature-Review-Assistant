@@ -1,4 +1,4 @@
-# app.py — GPT-4o mini summaries/keywords (batched), fast preview flow, safe assignment
+# app.py — Gemini Pro summaries/keywords (batched preview flow, safe assignment)
 import os
 import pandas as pd
 import streamlit as st
@@ -10,20 +10,20 @@ from cleaning import clean_html_abstract, normalize_authors, remove_duplicates
 
 st.set_page_config(page_title="LitFinder — Literature Review Assistant", layout="wide")
 st.title("📚 LitFinder: Literature Review Assistant")
-st.caption("OpenAI GPT-4o mini for fast, batched summaries & keywords. Preview-first to stay snappy.")
+st.caption("Google Gemini Pro for fast, concise summaries & keywords. Preview-first to stay snappy.")
 
-# ---- Health check for key ----
-def _has_openai_key() -> bool:
+# ---- Health check for Gemini key ----
+def _has_gemini_key() -> bool:
     try:
-        _ = st.secrets["OPENAI_API_KEY"]
+        _ = st.secrets["GOOGLE_API_KEY"]
         return True
     except Exception:
-        return bool(os.getenv("OPENAI_API_KEY", ""))
+        return bool(os.getenv("GOOGLE_API_KEY", ""))
 
-if not _has_openai_key():
+if not _has_gemini_key():
     st.warning(
-        "OpenAI API key not found. On Streamlit Cloud, set Settings → Secrets → "
-        "`OPENAI_API_KEY = \"sk-...\"`. Locally, set the `OPENAI_API_KEY` env var."
+        "Google Gemini API key not found. On Streamlit Cloud, set Settings → Secrets → "
+        "`GOOGLE_API_KEY = \"your_key_here\"`. Locally, set the `GOOGLE_API_KEY` environment variable."
     )
 
 # ---- Caching ----
@@ -71,7 +71,7 @@ with st.sidebar:
     query = st.text_input("Query", value="quantum cryptography robotics")
     max_results = st.slider("Max results", 50, 1000, 300, 50)
 
-    st.header("🧠 NLP (GPT-4o mini)")
+    st.header("🧠 NLP (Gemini Pro)")
     do_summ = st.checkbox("Generate summaries", value=True)
     do_keys = st.checkbox("Extract keywords", value=False)
     max_words = st.slider("Summary length (words)", 30, 160, 60, 5)
@@ -104,13 +104,13 @@ if go:
         idx = df.index if process_all else df.index[:min(preview_n, len(df))]
 
         if do_summ:
-            with st.spinner(f"Summarizing {len(idx)} abstracts (batched {batch_size})..."):
+            with st.spinner(f"Summarizing {len(idx)} abstracts..."):
                 df = run_summaries(
                     df, idx, text_column="abstract", max_words=max_words, batch_size=batch_size
                 )
 
         if do_keys:
-            with st.spinner(f"Extracting keywords for {len(idx)} abstracts (batched {batch_size})..."):
+            with st.spinner(f"Extracting keywords for {len(idx)} abstracts..."):
                 df = extract_keywords(
                     df, text_column="abstract", top_n=5, idx=idx, batch_size=batch_size
                 )
@@ -137,8 +137,8 @@ if go:
                 "- **authors** — comma-separated list\n"
                 "- **year** — publication year\n"
                 "- **abstract** — cleaned abstract text\n"
-                "- **summary** — GPT-4o mini summary (if enabled)\n"
-                "- **keywords** — GPT-4o mini keyphrases (if enabled)\n"
+                "- **summary** — Gemini Pro summary (if enabled)\n"
+                "- **keywords** — Gemini Pro keyphrases (if enabled)\n"
                 "- **journal** — host venue/journal (if available)\n"
             )
 
