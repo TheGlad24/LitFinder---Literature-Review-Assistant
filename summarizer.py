@@ -8,7 +8,7 @@ import google.generativeai as genai
 
 # ---------- Setup ----------
 API_KEY_ENV = "GOOGLE_API_KEY"
-MODEL_NAME = "gemini-pro"
+MODEL_NAME = "gemini-2.5-pro"
 
 @st.cache_resource(show_spinner=False)
 def _configure_gemini():
